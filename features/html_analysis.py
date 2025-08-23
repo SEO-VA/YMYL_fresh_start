@@ -20,69 +20,52 @@ class HTMLAnalysisFeature(BaseAnalysisFeature):
         return "HTML Analysis"
     
     def get_input_interface(self) -> Dict[str, Any]:
-        """Render HTML input interface"""
-        st.subheader("📄 HTML Analysis")
+        """Render simple HTML input interface"""
         
-        # Input method selection
-        col1, col2 = st.columns([2, 1])
+        # Simple input method selection
+        input_method = st.selectbox(
+            "**Input method:**",
+            ["📝 Paste HTML", "📁 Upload ZIP"],
+            key=self.get_session_key("input_method")
+        )
         
-        with col1:
-            input_method = st.selectbox(
-                "Choose input method:",
-                ["📝 Paste HTML directly", "📁 Upload ZIP file with HTML"],
-                key=self.get_session_key("input_method")
-            )
-        
-        with col2:
-            st.markdown("<br>", unsafe_allow_html=True)
-            casino_mode = self.show_casino_mode_toggle()
+        # Casino mode toggle
+        casino_mode = self.show_casino_mode_toggle()
         
         # Input interface based on method
         input_data = {'casino_mode': casino_mode, 'input_method': input_method}
         
-        if input_method == "📝 Paste HTML directly":
-            input_data.update(self._render_html_paste_interface())
+        if input_method == "📝 Paste HTML":
+            input_data.update(self._render_simple_html_interface())
         else:
-            input_data.update(self._render_zip_upload_interface())
+            input_data.update(self._render_simple_zip_interface())
         
         return input_data
     
-    def _render_html_paste_interface(self) -> Dict[str, Any]:
-        """Render HTML paste interface"""
-        st.markdown("**Paste HTML Content:**")
-        
+    def _render_simple_html_interface(self) -> Dict[str, Any]:
+        """Simple HTML paste interface"""
         html_content = st.text_area(
-            "HTML Content:",
-            height=200,
-            placeholder="<html><head><title>Your content...</title></head><body>...</body></html>",
-            help="Paste the complete HTML document here",
+            "**HTML Content:**",
+            height=150,
+            placeholder="<html><body>Your content...</body></html>",
             key=self.get_session_key("html_content")
         )
         
-        # Validation
-        is_valid = bool(html_content and html_content.strip())
-        error_message = ""
-        
-        if html_content and not self._is_valid_html(html_content):
-            is_valid = False
-            error_message = "HTML content appears to be invalid or incomplete"
-            st.warning("⚠️ " + error_message)
+        # Simple validation
+        is_valid = bool(html_content and html_content.strip() and len(html_content.strip()) > 10)
         
         return {
             'html_content': html_content.strip() if html_content else "",
             'is_valid': is_valid,
-            'error_message': error_message,
+            'error_message': "" if is_valid else "HTML content required",
             'source_type': 'html_paste'
         }
     
-    def _render_zip_upload_interface(self) -> Dict[str, Any]:
-        """Render ZIP upload interface"""
-        st.markdown("**Upload ZIP Archive:**")
-        
+    def _render_simple_zip_interface(self) -> Dict[str, Any]:
+        """Simple ZIP upload interface"""
         uploaded_file = st.file_uploader(
-            "Select ZIP file:",
+            "**Upload ZIP file:**",
             type=['zip'],
-            help="ZIP must contain exactly one HTML file",
             key=self.get_session_key("zip_file")
         )
         
@@ -92,19 +75,16 @@ class HTMLAnalysisFeature(BaseAnalysisFeature):
         html_content = ""
         
         if uploaded_file:
-            # Validate ZIP file
             try:
                 zip_bytes = uploaded_file.getvalue()
                 is_valid, html_content, error_message = self._validate_zip_file(zip_bytes)
                 
                 if not is_valid:
                     st.error(f"❌ {error_message}")
-                else:
-                    st.success(f"✅ Valid ZIP file with HTML content ({len(html_content):,} characters)")
                     
             except Exception as e:
                 is_valid = False
-                error_message = f"Error reading ZIP file: {str(e)}"
+                error_message = f"Error reading ZIP: {str(e)}"
                 st.error(f"❌ {error_message}")
         
         return {
