@@ -48,7 +48,7 @@ def get_assistant_ids() -> Dict[str, str]:
         }
     except KeyError as e:
         safe_log(f"Assistant ID not found in secrets: {e}")
-        raise KeyError(f"Assistant IDs not configured in secrets.toml: {e}")
+        raise KeyError(f"Assistant IDs not configured in secrets: {e}")
 
 def get_request_settings() -> Dict[str, Any]:
     """
@@ -116,7 +116,7 @@ def validate_configuration() -> tuple[bool, list]:
         errors.append("Assistant IDs not configured")
     
     try:
-        # Check auth configuration
+        # Check auth configuration - your format
         users = st.secrets["auth"]["users"]
         if not isinstance(users, dict) or len(users) == 0:
             errors.append("No users configured for authentication")
@@ -134,22 +134,22 @@ def validate_configuration() -> tuple[bool, list]:
 
 def get_secrets_template() -> str:
     """
-    Get template for secrets.toml configuration
+    Get template for secrets.toml configuration - updated with both assistant IDs
     
     Returns:
         Template string for secrets.toml file
     """
-    return """# YMYL Audit Tool Configuration
-# Add your actual values and place in .streamlit/secrets.toml
+    return """# YMYL Audit Tool Configuration - Updated Format
 
 # OpenAI Configuration
 openai_api_key = "sk-your-openai-api-key-here"
 regular_assistant_id = "asst_your-regular-assistant-id-here"
 casino_assistant_id = "asst_your-casino-assistant-id-here"
 
-# Authentication
-[auth]
-users = { admin = "your-admin-password", user2 = "user2-password" }
+# Authentication - Your Current Format
+[auth.users]
+seoapp = "your-seoapp-password"
+admin = "your-admin-password"
 """
 
 def display_configuration_help():
