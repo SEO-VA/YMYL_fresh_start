@@ -43,12 +43,27 @@ def main():
     )
     
     # Get appropriate feature handler
-    if analysis_type == "🌐 URL Analysis":
-        feature_key = "url_analysis"
-    else:
-        feature_key = "html_analysis"
-    
     try:
+        available_features = FeatureRegistry.get_available_features()
+        
+        # Debug: Show what features are available
+        if not available_features:
+            st.error("❌ No features registered")
+            st.text("Debug: Check feature imports in feature_registry.py")
+            return
+        
+        # Map display names to feature keys
+        if analysis_type == "🌐 URL Analysis":
+            feature_key = "url_analysis"
+        else:
+            feature_key = "html_analysis"
+        
+        # Check if feature exists
+        if feature_key not in available_features:
+            st.error(f"❌ Feature '{feature_key}' not found")
+            st.text(f"Available features: {list(available_features.keys())}")
+            return
+        
         feature_handler = FeatureRegistry.get_handler(feature_key)
         
         if is_admin:
@@ -58,6 +73,13 @@ def main():
             
     except Exception as e:
         st.error(f"❌ Error loading feature: {str(e)}")
+        
+        # Show debug info
+        try:
+            available_features = FeatureRegistry.get_available_features()
+            st.text(f"Available features: {list(available_features.keys())}")
+        except:
+            st.text("Could not get available features")
 
 def render_admin_interface(feature_handler):
     """Admin interface with two steps and preview"""
