@@ -14,7 +14,7 @@ class BaseAnalysisFeature(ABC):
     
     def __init__(self):
         """Initialize base feature"""
-        self.feature_id = self.__class__.__name__.lower().replace('feature', '')
+        self.feature_id = self.__class__.__name__.lower().replace('analysisfeature', '').replace('feature', '')
         self.session_key_prefix = f"{self.feature_id}_"
     
     @abstractmethod
@@ -81,10 +81,13 @@ class BaseAnalysisFeature(ABC):
         if not self.supports_casino_mode():
             return False
         
+        # Use a simpler key to avoid conflicts
+        key = f"casino_mode_{self.feature_id}"
+        
         return st.checkbox(
             "🎰 Casino Review Mode",
             help="Use specialized AI assistant for gambling content analysis",
-            key=self.get_session_key("casino_mode")
+            key=key
         )
     
     def validate_input(self, input_data: Dict[str, Any]) -> Tuple[bool, str]:
