@@ -95,52 +95,25 @@ def create_fake_progress(total_steps: int = 5) -> Tuple[Any, Any, callable]:
 
 def create_results_display(analysis_result: Dict[str, Any], word_bytes: bytes, filename: str):
     """
-    Display analysis results and download options
+    Simple results display with just download button
     
     Args:
         analysis_result: Results from AI analysis
         word_bytes: Word document bytes
         filename: Filename for download
     """
-    st.markdown("---")
-    st.subheader("📊 Analysis Results")
+    # Simple download button
+    st.download_button(
+        label="📄 Download Word Report",
+        data=word_bytes,
+        file_name=filename,
+        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        help="Download YMYL compliance report as Word document",
+        type="primary",
+        use_container_width=True
+    )
     
-    # Quick stats
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        processing_time = analysis_result.get('processing_time', 0)
-        st.metric("Processing Time", f"{processing_time:.1f}s")
-    
-    with col2:
-        response_length = analysis_result.get('response_length', 0)
-        st.metric("Response Length", f"{response_length:,} chars")
-    
-    with col3:
-        ai_response = analysis_result.get('ai_response', [])
-        sections_count = len(ai_response) if isinstance(ai_response, list) else 0
-        st.metric("Sections Analyzed", sections_count)
-    
-    # Download section
-    st.markdown("### 📄 Download Report")
-    
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.download_button(
-            label="📄 Download Word Document",
-            data=word_bytes,
-            file_name=filename,
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            help="Download professionally formatted Word document (imports perfectly into Google Docs)",
-            type="primary",
-            use_container_width=True
-        )
-    
-    st.success("✅ **Tip**: The Word document imports perfectly into Google Docs while preserving all formatting!")
-    
-    # Report preview
-    with st.expander("👁️ Preview Report Content"):
-        st.markdown(analysis_result.get('report', 'No report content available'))
+    st.info("💡 **Tip**: The Word document imports perfectly into Google Docs!")
 
 def create_loading_animation(message: str = "Processing..."):
     """
