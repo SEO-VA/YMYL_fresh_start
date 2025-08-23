@@ -18,38 +18,29 @@ class URLAnalysisFeature(BaseAnalysisFeature):
         return "URL Analysis"
     
     def get_input_interface(self) -> Dict[str, Any]:
-        """Render URL input interface"""
-        st.subheader("🌐 URL Analysis")
+        """Render simple URL input interface"""
         
         # URL input
-        col1, col2 = st.columns([2, 1])
+        url = st.text_input(
+            "**Enter URL:**",
+            placeholder="https://example.com/page",
+            key=self.get_session_key("url_input")
+        )
         
-        with col1:
-            url = st.text_input(
-                "Enter the URL to analyze:",
-                placeholder="https://example.com/page-to-analyze",
-                help="Enter the full URL including http:// or https://",
-                key=self.get_session_key("url_input")
-            )
+        # Casino mode toggle
+        casino_mode = self.show_casino_mode_toggle()
         
-        with col2:
-            st.markdown("<br>", unsafe_allow_html=True)
-            casino_mode = self.show_casino_mode_toggle()
+        # Simple validation
+        is_valid = bool(url and url.strip() and validate_url(url.strip()))
         
-        # Validation
-        is_valid = True
-        error_message = ""
-        
-        if url and not validate_url(url):
-            is_valid = False
-            error_message = "Please enter a valid URL (must include http:// or https://)"
-            st.warning("⚠️ " + error_message)
+        if url and not is_valid:
+            st.error("❌ Please enter a valid URL")
         
         return {
             'url': url.strip() if url else "",
             'casino_mode': casino_mode,
-            'is_valid': is_valid and bool(url.strip()),
-            'error_message': error_message
+            'is_valid': is_valid,
+            'error_message': "" if is_valid else "Valid URL required"
         }
     
     def validate_input(self, input_data: Dict[str, Any]) -> Tuple[bool, str]:
