@@ -69,102 +69,57 @@ def process_analysis(url: str, casino_mode: bool):
     """Process the complete analysis workflow"""
     
     try:
-        # Create progress container
-        progress_container = st.container()
-        
-        with progress_container:
-            st.markdown("### 🔄 Processing Analysis")
-            
-            # Step 1: Extract content
-            st.info("📄 Extracting content from URL...")
+        # Step 1: Extract content
+        with st.status("Extracting content..."):
             success, extracted_content, error = extract_url_content(url)
             
             if not success:
                 st.error(f"❌ Content extraction failed: {error}")
                 return
-            
-            st.success(f"✅ Content extracted ({len(extracted_content):,} characters)")
-            
-            # Step 2: AI Analysis with fake progress
-            st.info("🤖 Starting AI analysis...")
-            
-            # Create fake progress bar
-            progress_bar = st.progress(0)
-            status_text = st.empty()
-            
-            # Start AI analysis in background
+        
+        # Step 2: AI Analysis with simple progress
+        with st.status("Analyzing content..."):
+            # Run AI analysis
             async def run_analysis():
                 return await analyze_content(extracted_content, casino_mode)
             
-            # Fake progress while AI runs
-            progress_steps = [
-                (10, "Processing content structure..."),
-                (30, "Analyzing YMYL compliance..."), 
-                (60, "Checking guideline violations..."),
-                (85, "Generating recommendations..."),
-                (100, "Analysis complete!")
-            ]
-            
-            # Run analysis with fake progress
-            analysis_result = None
-            start_time = time.time()
-            
-            # Create async task
+            # Run analysis
             import concurrent.futures
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 future = executor.submit(lambda: asyncio.run(run_analysis()))
-                
-                # Show fake progress
-                for progress, message in progress_steps:
-                    elapsed = time.time() - start_time
-                    if future.done():
-                        break
-                    
-                    progress_bar.progress(progress / 100)
-                    status_text.text(f"🔄 {message}")
-                    time.sleep(2)  # Wait between updates
-                
-                # Get final result
-                try:
-                    analysis_result = future.result(timeout=300)  # 5 min timeout
-                    progress_bar.progress(1.0)
-                    status_text.text("✅ Analysis complete!")
-                except concurrent.futures.TimeoutError:
-                    st.error("❌ Analysis timed out after 5 minutes")
-                    return
+                analysis_result = future.result(timeout=300)  # 5 min timeout
+        
+        if not analysis_result or not analysis_result.get('success'):
+            error_msg = analysis_result.get('error', 'Unknown error') if analysis_result else 'Analysis failed'
+            st.error(f"❌ AI Analysis failed: {error_msg}")
+            return
+        
+        # Step 3: Generate report
+        with st.status("Generating report..."):
+            word_bytes = generate_word_report(
+                analysis_result['report'],
+                f"YMYL Compliance Report - {url}",
+                casino_mode
+            )
             
-            if not analysis_result or not analysis_result.get('success'):
-                error_msg = analysis_result.get('error', 'Unknown error') if analysis_result else 'Analysis failed'
-                st.error(f"❌ AI Analysis failed: {error_msg}")
-                return
-            
-            st.success("✅ AI analysis completed successfully!")
-            
-            # Step 3: Generate report
-            st.info("📝 Generating Word report...")
-            
-            try:
-                word_bytes = generate_word_report(
-                    analysis_result['report'],
-                    f"YMYL Compliance Report - {url}",
-                    casino_mode
-                )
-                
-                # Create download button
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                filename = f"ymyl_report_{timestamp}.docx"
-                
-                st.success("✅ Report generated successfully!")
-                
-                # Display results
-                create_results_display(analysis_result, word_bytes, filename)
-                
-            except Exception as e:
-                st.error(f"❌ Report generation failed: {str(e)}")
-                safe_log(f"Report generation error: {e}")
+            # Create download button
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"ymyl_report_{timestamp}.docx"
+        
+        # Simple download section
+        st.success("✅ Analysis complete!")
+        
+        st.download_button(
+            label="📄 Download Word Report",
+            data=word_bytes,
+            file_name=filename,
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            type="primary",
+            use_container_width=True
+        )
                 
     except Exception as e:
-        st.error(f"❌ Unexpected error during analysis: {str(e)}")
+        st.error(f"❌ Analysis failed: {str(e)}")
         safe_log(f"Analysis process error: {e}")
 
 if __name__ == "__main__":
