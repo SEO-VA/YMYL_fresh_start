@@ -65,24 +65,42 @@ def show_feature_selector():
     st.subheader("📋 Analysis Type")
     
     # Get available features from registry
-    available_features = FeatureRegistry.get_available_features()
-    
-    # Feature selection
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        selected = st.selectbox(
-            "Choose analysis method:",
-            options=list(available_features.keys()),
-            format_func=lambda x: available_features[x]['display_name'],
-            help="Select the type of content you want to analyze"
-        )
-    
-    with col2:
-        # Show feature info
-        feature_info = available_features[selected]
-        st.info(f"📄 {feature_info['description']}")
-    
-    return selected
+    try:
+        available_features = FeatureRegistry.get_available_features()
+        
+        if not available_features:
+            st.error("❌ No analysis features available. Check configuration.")
+            st.stop()
+        
+        # Feature selection
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            selected = st.selectbox(
+                "Choose analysis method:",
+                options=list(available_features.keys()),
+                format_func=lambda x: available_features.get(x, {}).get('display_name', x),
+                help="Select the type of content you want to analyze"
+            )
+        
+        with col2:
+            # Show feature info
+            if selected and selected in available_features:
+                feature_info = available_features[selected]
+                st.info(f"📄 {feature_info.get('description', 'No description available')}")
+            else:
+                st.warning("⚠️ Feature information unavailable")
+        
+        return selected
+        
+    except Exception as e:
+        st.error(f"❌ Error loading features: {str(e)}")
+        
+        # Show debug info
+        with st.expander("🔧 Debug Information"):
+            st.text(f"Error: {str(e)}")
+            st.text("Check that feature modules are properly imported")
+        
+        st.stop()
 
 def create_sidebar(current_user: str, is_admin: bool):
     """Create sidebar with user controls and info"""
