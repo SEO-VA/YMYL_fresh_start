@@ -25,12 +25,15 @@ def create_header():
     
     st.markdown("---")
 
-def create_url_input() -> Tuple[str, bool, bool]:
+def create_url_input(two_step_mode: bool = False) -> Tuple[str, bool, bool]:
     """
     Create URL input section with casino mode toggle
     
+    Args:
+        two_step_mode: Whether to show extract button instead of analyze button
+    
     Returns:
-        Tuple of (url, casino_mode, analyze_clicked)
+        Tuple of (url, casino_mode, button_clicked)
     """
     st.subheader("📝 Content Analysis")
     
@@ -53,24 +56,36 @@ def create_url_input() -> Tuple[str, bool, bool]:
             key="casino_mode"
         )
     
-    # Analysis button
+    # Button section
     col1, col2, col3 = st.columns([2, 1, 2])
     
     with col2:
-        analyze_clicked = st.button(
-            "🚀 Analyze Content",
-            type="primary",
-            use_container_width=True,
-            help="Extract content and analyze for YMYL compliance",
-            key="analyze_button",
-            disabled=not url or not url.strip()
-        )
+        if two_step_mode:
+            # Admin mode - Extract button
+            button_clicked = st.button(
+                "📄 Extract Content",
+                type="primary",
+                use_container_width=True,
+                help="Extract and structure content from URL",
+                key="extract_button",
+                disabled=not url or not url.strip()
+            )
+        else:
+            # Regular mode - Analyze button  
+            button_clicked = st.button(
+                "🚀 Analyze Content",
+                type="primary",
+                use_container_width=True,
+                help="Extract content and analyze for YMYL compliance",
+                key="analyze_button",
+                disabled=not url or not url.strip()
+            )
     
     # Show URL validation
     if url and not _is_valid_url(url):
         st.warning("⚠️ Please enter a valid URL (must include http:// or https://)")
     
-    return url.strip() if url else "", casino_mode, analyze_clicked
+    return url.strip() if url else "", casino_mode, button_clicked
 
 def create_fake_progress(total_steps: int = 5) -> Tuple[Any, Any, callable]:
     """
