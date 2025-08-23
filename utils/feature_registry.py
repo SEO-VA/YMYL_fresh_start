@@ -62,7 +62,7 @@ class FeatureRegistry:
 
 # Auto-register available features
 def _register_default_features():
-    """Register default features"""
+    """Register default features with better error handling"""
     
     # URL Analysis Feature
     try:
@@ -78,8 +78,11 @@ def _register_default_features():
             },
             URLAnalysisFeature
         )
-    except ImportError:
-        safe_log("URL Analysis feature not available")
+        safe_log("Successfully registered URL Analysis feature")
+    except ImportError as e:
+        safe_log(f"URL Analysis feature not available: {e}")
+    except Exception as e:
+        safe_log(f"Error registering URL Analysis feature: {e}")
     
     # HTML Analysis Feature  
     try:
@@ -95,8 +98,15 @@ def _register_default_features():
             },
             HTMLAnalysisFeature
         )
-    except ImportError:
-        safe_log("HTML Analysis feature not available")
+        safe_log("Successfully registered HTML Analysis feature")
+    except ImportError as e:
+        safe_log(f"HTML Analysis feature not available: {e}")
+    except Exception as e:
+        safe_log(f"Error registering HTML Analysis feature: {e}")
 
-# Initialize features on module load
-_register_default_features()
+# Initialize features on module load with error handling
+try:
+    _register_default_features()
+    safe_log(f"Feature registration complete. Available features: {len(FeatureRegistry.get_available_features())}")
+except Exception as e:
+    safe_log(f"Critical error during feature registration: {e}")
