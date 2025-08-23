@@ -1,186 +1,148 @@
 #!/usr/bin/env python3
 """
-YMYL Audit Tool - Main Application Router
-Restructured for scalable feature architecture
+URL Analysis Feature for YMYL Audit Tool
+Handles URL-based content analysis
 """
 
 import streamlit as st
-from core.auth import check_authentication, logout, get_current_user
-from utils.feature_registry import FeatureRegistry
-from ui.layouts.admin_layout import AdminLayout
-from ui.layouts.user_layout import UserLayout
+from typing import Dict, Any, Tuple, Optional
+from features.base_feature import BaseAnalysisFeature
+from core.extractor import extract_url_content
+from utils.helpers import validate_url, safe_log
 
-# Configure Streamlit page
-st.set_page_config(
-    page_title="YMYL Audit Tool",
-    page_icon="🔍",
-    layout="wide"
-)
-
-def main():
-    """Main application router"""
+class URLAnalysisFeature(BaseAnalysisFeature):
+    """Feature for analyzing content from web URLs"""
     
-    # Check authentication first
-    if not check_authentication():
-        return
+    def get_feature_name(self) -> str:
+        """Get display name for this feature"""
+        return "URL Analysis"
     
-    # Get current user and determine layout
-    current_user = get_current_user()
-    is_admin = (current_user == 'admin')
-    
-    # Create page header
-    create_page_header(current_user, is_admin)
-    
-    # Feature selection
-    selected_feature = show_feature_selector()
-    
-    # Route to appropriate handler based on user type
-    if is_admin:
-        layout = AdminLayout()
-        layout.render(selected_feature)
-    else:
-        layout = UserLayout()
-        layout.render(selected_feature)
-    
-    # Sidebar
-    create_sidebar(current_user, is_admin)
-
-def create_page_header(current_user: str, is_admin: bool):
-    """Create main page header"""
-    st.title("🔍 YMYL Audit Tool")
-    
-    col1, col2 = st.columns([2, 1])
-    with col1:
-        st.markdown("**AI-powered YMYL compliance analysis**")
-    with col2:
-        if is_admin:
-            st.success(f"🛠️ Admin: {current_user}")
-        else:
-            st.info(f"👤 User: {current_user}")
-    
-    st.markdown("---")
-
-def show_feature_selector():
-    """Show feature selection interface"""
-    st.subheader("📋 Analysis Type")
-    
-    # Get available features from registry
-    try:
-        available_features = FeatureRegistry.get_available_features()
+    def get_input_interface(self) -> Dict[str, Any]:
+        """Render simple URL input interface"""
         
-        if not available_features:
-            st.error("❌ No analysis features available. Check configuration.")
-            st.stop()
+        # URL input
+        url = st.text_input(
+            "**Enter URL:**",
+            placeholder="https://example.com/page",
+            key=self.get_session_key("url_input")
+        )
         
-        # Feature selection
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            selected = st.selectbox(
-                "Choose analysis method:",
-                options=list(available_features.keys()),
-                format_func=lambda x: available_features.get(x, {}).get('display_name', x),
-                help="Select the type of content you want to analyze"
-            )
+        # Casino mode toggle
+        casino_mode = self.show_casino_mode_toggle()
         
-        with col2:
-            # Show feature info
-            if selected and selected in available_features:
-                feature_info = available_features[selected]
-                st.info(f"📄 {feature_info.get('description', 'No description available')}")
+        # Simple validation
+        is_valid = bool(url and url.strip() and validate_url(url.strip()))
+        
+        if url and not is_valid:
+            st.error("❌ Please enter a valid URL")
+        
+        return {
+            'url': url.strip() if url else "",
+            'casino_mode': casino_mode,
+            'is_valid': is_valid,
+            'error_message': "" if is_valid else "Valid URL required"
+        }
+    
+    def validate_input(self, input_data: Dict[str, Any]) -> Tuple[bool, str]:
+        """Validate URL input"""
+        url = input_data.get('url', '').strip()
+        
+        if not url:
+            return False, "URL is required"
+        
+        if not validate_url(url):
+            return False, "Invalid URL format"
+        
+        return True, ""
+    
+    def extract_content(self, input_data: Dict[str, Any]) -> Tuple[bool, Optional[str], Optional[str]]:
+        """Extract content from URL"""
+        url = input_data['url']
+        
+        safe_log(f"Starting URL content extraction from: {url}")
+        
+        try:
+            # Use existing extractor
+            success, extracted_content, error = extract_url_content(url)
+            
+            if success:
+                safe_log(f"URL extraction successful: {len(extracted_content):,} characters")
+                return True, extracted_content, None
             else:
-                st.warning("⚠️ Feature information unavailable")
-        
-        return selected
-        
-    except Exception as e:
-        st.error(f"❌ Error loading features: {str(e)}")
-        
-        # Show debug info
-        with st.expander("🔧 Debug Information"):
-            st.text(f"Error: {str(e)}")
-            st.text("Check that feature modules are properly imported")
-        
-        st.stop()
-
-def create_sidebar(current_user: str, is_admin: bool):
-    """Create sidebar with user controls and info"""
-    with st.sidebar:
-        # Logout button
-        if st.button("🚪 Logout", type="secondary", use_container_width=True):
-            logout()
-            # Clear session state except auth
-            for key in list(st.session_state.keys()):
-                if key not in ['authenticated', 'username']:
-                    del st.session_state[key]
-            st.rerun()
-        
-        st.markdown("---")
-        
-        # Mode-specific instructions
-        if is_admin:
-            show_admin_info()
-        else:
-            show_user_info()
-        
-        # System status
-        show_system_status()
-
-def show_admin_info():
-    """Show admin-specific information"""
-    st.markdown("### 🛠️ Admin Mode")
-    st.markdown("""
-    **Two-Step Process:**
-    
-    1️⃣ **Content Extraction**
-    - View detailed extraction metrics
-    - Inspect structured content
-    - Review data sent to AI
-    
-    2️⃣ **AI Analysis**  
-    - See processing details
-    - View raw AI responses
-    - Check violation summaries
-    
-    3️⃣ **Professional Report**
-    - Download Word document
-    """)
-
-def show_user_info():
-    """Show user-specific information"""
-    st.markdown("### ℹ️ How to Use")
-    st.markdown("""
-    **Simple Process:**
-    
-    1️⃣ **Choose Content Source**
-    - URL, HTML file, or ZIP
-    
-    2️⃣ **Select Analysis Mode**
-    - Regular or Casino review
-    
-    3️⃣ **Run Analysis**
-    - AI processes content (2-5 min)
-    
-    4️⃣ **Download Report**
-    - Professional Word document
-    """)
-
-def show_system_status():
-    """Show system configuration status"""
-    st.markdown("### 🔧 System Status")
-    
-    try:
-        from config.settings import validate_configuration
-        is_valid, errors = validate_configuration()
-        
-        if is_valid:
-            st.success("✅ Configuration OK")
-        else:
-            st.error("❌ Configuration Issues")
-            for error in errors[:3]:  # Show max 3 errors
-                st.text(f"• {error}")
+                safe_log(f"URL extraction failed: {error}")
+                return False, None, error
                 
-    except Exception as e:
-        st.error(f"❌ Config check failed")
-
-if __name__ == "__main__":
-    main()
+        except Exception as e:
+            error_msg = f"Unexpected error during URL extraction: {str(e)}"
+            safe_log(error_msg)
+            return False, None, error_msg
+    
+    def show_extraction_preview(self, extracted_content: str, url: str, is_admin: bool = False):
+        """Show extraction preview for URL analysis"""
+        if is_admin:
+            self._show_admin_preview(extracted_content, url)
+        else:
+            # Simple preview for regular users
+            st.info(f"💡 Content ready for AI analysis from: **{url}**")
+    
+    def _show_admin_preview(self, extracted_content: str, url: str):
+        """Show detailed admin preview"""
+        st.markdown("### 🔍 Admin: Extraction Details")
+        
+        # Get metrics
+        metrics = self.get_extraction_metrics(extracted_content)
+        
+        # Show metrics
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Big Chunks", metrics.get('big_chunks', 'N/A'))
+        with col2:
+            st.metric("Small Chunks", metrics.get('small_chunks', 'N/A'))
+        with col3:
+            st.metric("JSON Size", f"{metrics.get('json_size', 0):,} chars")
+        
+        # Content preview
+        with st.expander("👁️ View Extracted Content Structure"):
+            try:
+                import json
+                content_data = json.loads(extracted_content)
+                big_chunks = content_data.get('big_chunks', [])
+                
+                for i, chunk in enumerate(big_chunks, 1):
+                    st.markdown(f"**📦 Big Chunk {i}:**")
+                    small_chunks = chunk.get('small_chunks', [])
+                    
+                    for j, small_chunk in enumerate(small_chunks[:3], 1):
+                        preview = small_chunk[:150] + "..." if len(small_chunk) > 150 else small_chunk
+                        st.text(f"  {j}. {preview}")
+                    
+                    if len(small_chunks) > 3:
+                        st.text(f"  ... and {len(small_chunks) - 3} more chunks")
+                    st.markdown("---")
+                    
+            except json.JSONDecodeError:
+                st.error("Could not parse extracted JSON")
+        
+        # Raw JSON preview
+        with st.expander("🤖 JSON Data Sent to AI"):
+            st.code(extracted_content, language='json')
+    
+    def get_progress_steps(self) -> list:
+        """Get URL-specific progress steps"""
+        return [
+            "Connecting to URL",
+            "Downloading content",
+            "Parsing HTML structure", 
+            "Extracting text content",
+            "Organizing by sections"
+        ]
+    
+    def get_source_description(self, input_data: Dict[str, Any]) -> str:
+        """Get description of the content source"""
+        url = input_data.get('url', '')
+        try:
+            from utils.helpers import extract_domain
+            domain = extract_domain(url)
+            return f"URL: {domain}" if domain else f"URL: {url}"
+        except Exception:
+            return f"URL: {url}"
