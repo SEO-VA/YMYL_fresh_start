@@ -176,26 +176,13 @@ def show_admin_preview(feature_handler):
         st.metric("JSON Size", f"{metrics.get('json_size', 0):,} chars")
     
     # Content preview
-    with st.expander("👁️ View Content Preview"):
-        try:
-            import json
-            content_data = json.loads(extracted_content)
-            big_chunks = content_data.get('big_chunks', [])
-            
-            for i, chunk in enumerate(big_chunks[:3], 1):
-                st.markdown(f"**📦 Chunk {i}:**")
-                small_chunks = chunk.get('small_chunks', [])
-                
-                for j, small_chunk in enumerate(small_chunks[:3], 1):
-                    preview = small_chunk[:120] + "..." if len(small_chunk) > 120 else small_chunk
-                    st.text(f"{j}. {preview}")
-                
-                if len(small_chunks) > 3:
-                    st.text(f"... {len(small_chunks) - 3} more items")
-                st.markdown("---")
-                
-        except Exception:
-            st.error("Could not parse content preview")
+    with st.expander("👁️ View Full Extracted Content"):
+        st.text_area(
+            "Complete Extracted Content:",
+            value=extracted_content,
+            height=400,
+            key="full_content_preview"
+        )
 
 def run_analysis(feature_handler):
     """Run AI analysis for admin"""
