@@ -252,7 +252,7 @@ class YMYLAnalyzer:
         return True
 
     def _convert_to_markdown(self, ai_response: list) -> str:
-        """Convert AI response to markdown report"""
+        """Convert AI response to markdown report, excluding chunk_language field"""
         try:
             if not isinstance(ai_response, list):
                 return "❌ **Error**: Invalid AI response format"
@@ -305,6 +305,7 @@ class YMYLAnalyzer:
                         explanation = str(violation.get('explanation', 'No explanation provided'))
                         suggested_rewrite = str(violation.get('suggested_rewrite', 'No suggestion provided'))
                         
+                        # Build base violation text (excluding chunk_language)
                         violation_text = f"""**{severity_emoji} Violation {i}**
 - **Issue:** {violation_type}
 - **Problematic Text:** "{problematic_text}"
@@ -312,8 +313,20 @@ class YMYLAnalyzer:
 - **Guideline Reference:** Section {violation.get('guideline_section', 'N/A')} (Page {violation.get('page_number', 'N/A')})
 - **Severity:** {violation.get('severity', 'medium').title()}
 - **Suggested Fix:** "{suggested_rewrite}"
-
 """
+                        
+                        # Add translation fields if present (but skip chunk_language)
+                        if violation.get('translation'):
+                            violation_text += f"""- **Translation:** "{violation.get('translation', 'N/A')}"
+"""
+                        
+                        if violation.get('rewrite_translation'):
+                            violation_text += f"""- **Suggested Fix (Translation):** "{violation.get('rewrite_translation', 'N/A')}"
+"""
+                        
+                        # Note: chunk_language field is intentionally excluded from the report
+                        
+                        violation_text += "\n"
                         report_parts.append(violation_text)
                     
                     report_parts.append("\n")
