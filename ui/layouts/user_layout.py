@@ -27,8 +27,11 @@ class UserLayout:
             st.error(f"❌ {str(e)}")
             return
         
-        # Main content
-        self._render_analysis_interface(feature_handler)
+        # Check if we have results
+        if st.session_state.get('user_report') and st.session_state.get('user_word_bytes'):
+            self._show_results()
+        else:
+            self._render_analysis_interface(feature_handler)
     
     def _render_analysis_interface(self, feature_handler):
         """Render simple analysis interface"""
@@ -49,6 +52,31 @@ class UserLayout:
         # Process full analysis
         if analyze_clicked:
             self._process_full_analysis(feature_handler, input_data)
+    
+    def _show_results(self):
+        """Show results with markdown preview"""
+        st.success("✅ **Analysis Complete!**")
+        
+        # Show markdown report
+        st.markdown(st.session_state['user_report'])
+        
+        # Download button
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"ymyl_report_{timestamp}.docx"
+        
+        st.download_button(
+            label="📄 Download Word Report",
+            data=st.session_state['user_word_bytes'],
+            file_name=filename,
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            type="primary"
+        )
+        
+        # New analysis button
+        if st.button("🔄 Analyze Another"):
+            del st.session_state['user_report']
+            del st.session_state['user_word_bytes']
+            st.rerun()
     
     def _process_full_analysis(self, feature_handler, input_data: Dict[str, Any]):
         """Process complete analysis in one step"""
@@ -98,64 +126,12 @@ class UserLayout:
                 
                 status.update(label="✅ Analysis complete!", state="complete")
             
-            # Show results
-            self._show_simple_results(analysis_result, word_bytes, source_info)
+            # Store results
+            st.session_state['user_report'] = analysis_result['report']
+            st.session_state['user_word_bytes'] = word_bytes
+            
+            st.rerun()
             
         except Exception as e:
             st.error(f"❌ Analysis failed: {str(e)}")
             safe_log(f"Full analysis error: {e}")
-    
-    def _show_simple_results(self, analysis_result: Dict[str, Any], 
-                           word_bytes: bytes, source_info: str):
-        """Show simple results for regular users"""
-        
-        st.success("✅ **Analysis Complete!**")
-        
-        # Simple summary
-        ai_response = analysis_result.get('ai_response', [])
-        if isinstance(ai_response, list):
-            violations_found = sum(1 for section in ai_response 
-                                 if section.get('violations') != "no violation found" 
-                                 and section.get('violations'))
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric("Sections Analyzed", len(ai_response))
-            with col2:
-                if violations_found > 0:
-                    st.metric("Violations Found", violations_found, delta=f"in {violations_found} sections")
-                else:
-                    st.metric("Violations Found", 0, delta="All clear!")
-        
-        # Download section
-        st.markdown("### 📄 Download Your Report")
-        
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"ymyl_report_{timestamp}.docx"
-        
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            st.download_button(
-                label="📄 Download Word Report",
-                data=word_bytes,
-                file_name=filename,
-                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                type="primary",
-                use_container_width=True
-            )
-        
-        # Tips
-        st.info("💡 **Tip**: The Word document imports perfectly into Google Docs!")
-        
-        # New analysis button
-        st.markdown("---")
-        col1, col2, col3 = st.columns([1, 1, 1])
-        with col2:
-            if st.button("🔄 Analyze Another", use_container_width=True):
-                # Clear all feature session data
-                keys_to_remove = [k for k in st.session_state.keys() 
-                                if any(k.startswith(prefix) for prefix in 
-                                      ['url_analysis_', 'html_analysis_'])]
-                for key in keys_to_remove:
-                    del st.session_state[key]
-                st.rerun()

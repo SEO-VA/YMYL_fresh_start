@@ -219,48 +219,41 @@ class AdminLayout:
             
             st.success("✅ Analysis complete!")
             
-            # Show admin analysis results
-            self._show_analysis_results(analysis_result, word_bytes)
+            # Show admin results
+            self._show_admin_results(analysis_result, word_bytes, source_info)
             
         except Exception as e:
             st.error(f"❌ Analysis failed: {str(e)}")
             safe_log(f"Analysis error: {e}")
     
-    def _show_analysis_results(self, analysis_result: Dict[str, Any], word_bytes: bytes):
-        """Show detailed analysis results for admin"""
+    def _show_admin_results(self, analysis_result: Dict[str, Any], word_bytes: bytes, source_info: str):
+        """Show analysis results for admin"""
         
-        st.markdown("### 📊 Admin: Analysis Results")
+        st.markdown("### 📊 Analysis Results")
         
-        # Processing metrics
-        col1, col2, col3 = st.columns(3)
+        # Metrics
+        col1, col2 = st.columns(2)
         with col1:
             st.metric("Processing Time", f"{analysis_result.get('processing_time', 0):.1f}s")
         with col2:
             ai_response = analysis_result.get('ai_response', [])
-            sections_count = len(ai_response) if isinstance(ai_response, list) else 0
-            st.metric("Sections", sections_count)
-        with col3:
-            st.metric("Response Size", f"{analysis_result.get('response_length', 0):,} chars")
+            violations = sum(1 for section in ai_response 
+                            if section.get('violations') != "no violation found" 
+                            and section.get('violations')) if isinstance(ai_response, list) else 0
+            st.metric("Violations Found", violations)
         
-        # Violation summary
-        if isinstance(ai_response, list):
-            violations_found = sum(1 for section in ai_response 
-                                 if section.get('violations') != "no violation found" 
-                                 and section.get('violations'))
-            
-            if violations_found > 0:
-                st.warning(f"⚠️ **Found violations in {violations_found} section(s)**")
-            else:
-                st.success("✅ **No violations found**")
+        # Show markdown report
+        st.markdown("### 📄 Report")
+        st.markdown(analysis_result.get('report', ''))
         
         # Raw AI response
         with st.expander("🤖 View Raw AI Response"):
             st.json(analysis_result.get('ai_response', {}))
         
         # Download section
-        self._render_download_section(word_bytes)
+        self._render_download_section(word_bytes, source_info)
     
-    def _render_download_section(self, word_bytes: bytes):
+    def _render_download_section(self, word_bytes: bytes, source_info: str):
         """Render download section"""
         st.markdown("### 📄 Download Report")
         
@@ -272,8 +265,7 @@ class AdminLayout:
             data=word_bytes,
             file_name=filename,
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            type="primary",
-            use_container_width=True
+            type="primary"
         )
     
     def _render_step_indicator(self):
