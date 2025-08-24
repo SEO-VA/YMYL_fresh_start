@@ -252,7 +252,7 @@ class YMYLAnalyzer:
         return True
 
     def _convert_to_markdown(self, ai_response: list) -> str:
-        """Convert AI response to markdown report, excluding chunk_language field"""
+        """Convert AI response to markdown report, including translation fields but excluding chunk_language"""
         try:
             if not isinstance(ai_response, list):
                 return "❌ **Error**: Invalid AI response format"
@@ -300,33 +300,43 @@ class YMYLAnalyzer:
                             "low": "🔵"
                         }.get(violation.get("severity", "medium"), "🟡")
                         
+                        # Get basic violation fields
                         violation_type = str(violation.get('violation_type', 'Unknown violation'))
                         problematic_text = str(violation.get('problematic_text', 'N/A'))
                         explanation = str(violation.get('explanation', 'No explanation provided'))
                         suggested_rewrite = str(violation.get('suggested_rewrite', 'No suggestion provided'))
                         
-                        # Build base violation text (excluding chunk_language)
-                        violation_text = f"""**{severity_emoji} Violation {i}**
-- **Issue:** {violation_type}
-- **Problematic Text:** "{problematic_text}"
-- **Explanation:** {explanation}
-- **Guideline Reference:** Section {violation.get('guideline_section', 'N/A')} (Page {violation.get('page_number', 'N/A')})
-- **Severity:** {violation.get('severity', 'medium').title()}
-- **Suggested Fix:** "{suggested_rewrite}"
-"""
+                        # Build violation text - start with core fields
+                        violation_lines = [
+                            f"**{severity_emoji} Violation {i}**",
+                            f"- **Issue:** {violation_type}",
+                            f"- **Problematic Text:** \"{problematic_text}\"",
+                        ]
                         
-                        # Add translation fields if present (but skip chunk_language)
+                        # Add translation of problematic text if available
                         if violation.get('translation'):
-                            violation_text += f"""- **Translation:** "{violation.get('translation', 'N/A')}"
-"""
+                            translation = str(violation.get('translation', ''))
+                            if translation and translation.strip():
+                                violation_lines.append(f"- **Translation:** \"{translation}\"")
                         
+                        # Continue with standard fields
+                        violation_lines.extend([
+                            f"- **Explanation:** {explanation}",
+                            f"- **Guideline Reference:** Section {violation.get('guideline_section', 'N/A')} (Page {violation.get('page_number', 'N/A')})",
+                            f"- **Severity:** {violation.get('severity', 'medium').title()}",
+                            f"- **Suggested Fix:** \"{suggested_rewrite}\""
+                        ])
+                        
+                        # Add translation of suggested fix if available
                         if violation.get('rewrite_translation'):
-                            violation_text += f"""- **Suggested Fix (Translation):** "{violation.get('rewrite_translation', 'N/A')}"
-"""
+                            rewrite_translation = str(violation.get('rewrite_translation', ''))
+                            if rewrite_translation and rewrite_translation.strip():
+                                violation_lines.append(f"- **Suggested Fix (Translation):** \"{rewrite_translation}\"")
                         
                         # Note: chunk_language field is intentionally excluded from the report
                         
-                        violation_text += "\n"
+                        # Join all violation lines and add to report
+                        violation_text = "\n".join(violation_lines) + "\n\n"
                         report_parts.append(violation_text)
                     
                     report_parts.append("\n")
