@@ -17,14 +17,15 @@ class URLAnalysisFeature(BaseAnalysisFeature):
         """Get display name for this feature"""
         return "URL Analysis"
     
-    def get_input_interface(self) -> Dict[str, Any]:
+    def get_input_interface(self, disabled: bool = False) -> Dict[str, Any]:
         """Render simple URL input interface without casino toggle"""
         
         # URL input
         url = st.text_input(
             "**Enter URL:**",
             placeholder="https://example.com/page",
-            key=self.get_session_key("url_input")
+            key=self.get_session_key("url_input"),
+            disabled=disabled
         )
         
         # Simple validation

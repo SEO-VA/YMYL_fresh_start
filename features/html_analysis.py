@@ -19,33 +19,35 @@ class HTMLAnalysisFeature(BaseAnalysisFeature):
         """Get display name for this feature"""
         return "HTML Analysis"
     
-    def get_input_interface(self) -> Dict[str, Any]:
+    def get_input_interface(self, disabled: bool = False) -> Dict[str, Any]:
         """Render simple HTML input interface without casino toggle"""
         
-        # Simple input method selection
+        # Simple input method selection with Upload HTML/ZIP as default
         input_method = st.selectbox(
             "**Input method:**",
-            ["📝 Paste HTML", "📁 Upload ZIP"],
-            key=self.get_session_key("input_method")
+            ["📁 Upload HTML/ZIP", "📝 Paste HTML"],
+            key=self.get_session_key("input_method"),
+            disabled=disabled
         )
         
         # Input interface based on method
         input_data = {'input_method': input_method}
         
         if input_method == "📝 Paste HTML":
-            input_data.update(self._render_simple_html_interface())
+            input_data.update(self._render_simple_html_interface(disabled))
         else:
-            input_data.update(self._render_simple_zip_interface())
+            input_data.update(self._render_simple_zip_interface(disabled))
         
         return input_data
     
-    def _render_simple_html_interface(self) -> Dict[str, Any]:
+    def _render_simple_html_interface(self, disabled: bool = False) -> Dict[str, Any]:
         """Simple HTML paste interface"""
         html_content = st.text_area(
             "**HTML Content:**",
             height=150,
             placeholder="<html><body>Your content...</body></html>",
-            key=self.get_session_key("html_content")
+            key=self.get_session_key("html_content"),
+            disabled=disabled
         )
         
         # Simple validation
@@ -58,12 +60,14 @@ class HTMLAnalysisFeature(BaseAnalysisFeature):
             'source_type': 'html_paste'
         }
     
-    def _render_simple_zip_interface(self) -> Dict[str, Any]:
-        """Simple ZIP upload interface"""
+    def _render_simple_zip_interface(self, disabled: bool = False) -> Dict[str, Any]:
+        """Simple ZIP/HTML upload interface"""
         uploaded_file = st.file_uploader(
-            "**Upload ZIP file:**",
-            type=['zip'],
-            key=self.get_session_key("zip_file")
+            "**Upload HTML or ZIP file:**",
+            type=['zip', 'html', 'htm'],
+            key=self.get_session_key("zip_file"),
+            disabled=disabled,
+            help="Upload a single HTML file or a ZIP containing one HTML file"
         )
         
         # Validation
@@ -73,15 +77,20 @@ class HTMLAnalysisFeature(BaseAnalysisFeature):
         
         if uploaded_file:
             try:
-                zip_bytes = uploaded_file.getvalue()
-                is_valid, html_content, error_message = self._validate_zip_file(zip_bytes)
+                if uploaded_file.name.lower().endswith('.zip'):
+                    zip_bytes = uploaded_file.getvalue()
+                    is_valid, html_content, error_message = self._validate_zip_file(zip_bytes)
+                else:
+                    # Direct HTML file
+                    html_content = uploaded_file.getvalue().decode('utf-8', errors='ignore')
+                    is_valid, error_message = self._validate_html_content(html_content)
                 
                 if not is_valid:
                     st.error(f"❌ {error_message}")
                     
             except Exception as e:
                 is_valid = False
-                error_message = f"Error reading ZIP: {str(e)}"
+                error_message = f"Error reading file: {str(e)}"
                 st.error(f"❌ {error_message}")
         
         return {
@@ -89,7 +98,7 @@ class HTMLAnalysisFeature(BaseAnalysisFeature):
             'html_content': html_content,
             'is_valid': is_valid,
             'error_message': error_message,
-            'source_type': 'zip_upload'
+            'source_type': 'file_upload'
         }
     
     def _is_valid_html(self, html_content: str) -> bool:
@@ -196,16 +205,26 @@ class HTMLAnalysisFeature(BaseAnalysisFeature):
             "Organizing by sections"
         ]
     
+    def _validate_html_content(self, html_content: str) -> Tuple[bool, str]:
+        """Validate direct HTML content"""
+        if not self._is_valid_html(html_content):
+            return False, "HTML file contains invalid or incomplete content"
+        
+        if len(html_content) > 5 * 1024 * 1024:  # 5MB limit
+            return False, f"HTML file too large: {len(html_content):,} characters (max: 5MB)"
+        
+        return True, ""
+    
     def get_source_description(self, input_data: Dict[str, Any]) -> str:
         """Get description of the content source"""
         source_type = input_data.get('source_type', 'unknown')
         
         if source_type == 'html_paste':
             return "HTML (pasted content)"
-        elif source_type == 'zip_upload':
-            zip_file = input_data.get('zip_file')
-            if zip_file:
-                return f"ZIP: {zip_file.name}"
-            return "ZIP file"
+        elif source_type == 'file_upload':
+            uploaded_file = input_data.get('zip_file')
+            if uploaded_file:
+                return f"File: {uploaded_file.name}"
+            return "Uploaded file"
         else:
             return "HTML content"

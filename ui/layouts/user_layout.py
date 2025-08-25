@@ -36,10 +36,13 @@ class UserLayout:
             self._render_analysis_interface(feature_handler, analysis_key, casino_mode)
     
     def _render_analysis_interface(self, feature_handler, analysis_key: str, casino_mode: bool):
-        """Render simple analysis interface"""
+        """Render simple analysis interface with emergency stop support"""
         
-        # Get input interface (without casino mode toggle since it's global now)
-        input_data = feature_handler.get_input_interface()
+        # Check processing state
+        is_processing = st.session_state.get('is_processing', False)
+        
+        # Get input interface (disabled if processing)
+        input_data = feature_handler.get_input_interface(disabled=is_processing)
         # Override casino mode with global setting
         input_data['casino_mode'] = casino_mode
         
@@ -50,12 +53,17 @@ class UserLayout:
                 "🚀 Analyze Content",
                 type="primary",
                 use_container_width=True,
-                disabled=not input_data.get('is_valid', False)
+                disabled=not input_data.get('is_valid', False) or is_processing
             )
         
         # Process full analysis
         if analyze_clicked:
-            self._process_full_analysis(feature_handler, input_data, analysis_key)
+            st.session_state['is_processing'] = True
+            st.rerun()
+            
+        # Process analysis if button was clicked
+        if st.session_state.get('is_processing') and not st.session_state.get('stop_processing'):
+            self._process_full_analysis_with_stop(feature_handler, input_data, analysis_key)
     
     def _show_results_with_report(self, analysis_key: str):
         """Show results with markdown preview and download"""
@@ -101,16 +109,23 @@ class UserLayout:
             st.markdown("### 📄 YMYL Compliance Report")
             st.markdown(markdown_report)
     
-    def _process_full_analysis(self, feature_handler, input_data: Dict[str, Any], analysis_key: str):
-        """Process complete analysis in one step"""
+    def _process_full_analysis_with_stop(self, feature_handler, input_data: Dict[str, Any], analysis_key: str):
+        """Process complete analysis in one step with emergency stop support"""
         
         try:
             # Step 1: Content Extraction
             with st.status("Extracting content...") as status:
+                # Check for stop signal
+                if st.session_state.get('stop_processing'):
+                    st.session_state['is_processing'] = False
+                    st.session_state['stop_processing'] = False
+                    return
+                
                 # Validate input
                 is_valid, error_msg = feature_handler.validate_input(input_data)
                 if not is_valid:
                     st.error(f"❌ Validation failed: {error_msg}")
+                    st.session_state['is_processing'] = False
                     return
                 
                 # Extract content
@@ -118,6 +133,13 @@ class UserLayout:
                 
                 if not success:
                     st.error(f"❌ Extraction failed: {error}")
+                    st.session_state['is_processing'] = False
+                    return
+                
+                # Check for stop signal
+                if st.session_state.get('stop_processing'):
+                    st.session_state['is_processing'] = False
+                    st.session_state['stop_processing'] = False
                     return
                 
                 status.update(label="Content extracted, running AI analysis...", state="running")
@@ -132,9 +154,16 @@ class UserLayout:
                     future = executor.submit(lambda: asyncio.run(run_analysis()))
                     analysis_result = future.result(timeout=300)
                 
+                # Check for stop signal
+                if st.session_state.get('stop_processing'):
+                    st.session_state['is_processing'] = False
+                    st.session_state['stop_processing'] = False
+                    return
+                
                 if not analysis_result or not analysis_result.get('success'):
                     error_msg = analysis_result.get('error', 'Unknown error')
                     st.error(f"❌ AI analysis failed: {error_msg}")
+                    st.session_state['is_processing'] = False
                     return
                 
                 status.update(label="Generating Word report...", state="running")
@@ -156,6 +185,9 @@ class UserLayout:
             st.session_state[f'{analysis_key}_source_info'] = source_info
             st.session_state[f'{analysis_key}_processing_time'] = analysis_result.get('processing_time', 0)
             
+            # Clear processing state
+            st.session_state['is_processing'] = False
+            
             # Log success
             safe_log(f"User analysis completed successfully for {source_info}")
             
@@ -165,3 +197,4 @@ class UserLayout:
         except Exception as e:
             st.error(f"❌ Analysis failed: {str(e)}")
             safe_log(f"Full analysis error: {e}")
+            st.session_state['is_processing'] = False

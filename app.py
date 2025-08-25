@@ -49,12 +49,25 @@ def main():
     if casino_mode:
         st.success("🎰 **Casino Review Mode: ON** - Using specialized gambling content analysis")
     
+    # Emergency stop button - always visible when process is running
+    is_processing = st.session_state.get('is_processing', False)
+    if is_processing:
+        col1, col2, col3 = st.columns([2, 1, 2])
+        with col2:
+            if st.button("🛑 EMERGENCY STOP", type="secondary", use_container_width=True, key="emergency_stop"):
+                # Clear processing state and any ongoing operations
+                st.session_state['is_processing'] = False
+                st.session_state['stop_processing'] = True
+                st.error("⚠️ Process stopped by user")
+                st.rerun()
+    
     # Feature selection with radio buttons
     analysis_type = st.radio(
         "**Choose analysis type:**",
         ["🌐 URL Analysis", "📄 HTML Analysis"],
         horizontal=True,
-        key="main_analysis_type"
+        key="main_analysis_type",
+        disabled=is_processing
     )
     
     # Get appropriate feature handler
@@ -89,6 +102,9 @@ def main():
 def render_admin_interface(feature_handler, feature_key: str, casino_mode: bool):
     """Admin interface with two steps and preview"""
     
+    # Check processing state
+    is_processing = st.session_state.get('is_processing', False)
+    
     # Check if we have extracted content
     has_content = feature_handler.has_extracted_content()
     
@@ -97,25 +113,25 @@ def render_admin_interface(feature_handler, feature_key: str, casino_mode: bool)
         st.subheader("Step 1: Extract Content")
         
         # Get input interface (without casino mode toggle since it's global now)
-        input_data = feature_handler.get_input_interface()
+        input_data = feature_handler.get_input_interface(disabled=is_processing)
         # Override casino mode with global setting
         input_data['casino_mode'] = casino_mode
         
         # Extract button
-        if st.button("📄 Extract Content", type="primary", disabled=not input_data.get('is_valid')):
-            with st.spinner("Extracting content..."):
-                success, extracted_content, error = feature_handler.extract_content(input_data)
-                
-                if success:
-                    # Save data
-                    feature_handler.set_session_data('extracted_content', extracted_content)
-                    feature_handler.set_session_data('source_info', feature_handler.get_source_description(input_data))
-                    feature_handler.set_session_data('casino_mode', casino_mode)
-                    
-                    st.success("✅ Content extracted!")
-                    st.rerun()
-                else:
-                    st.error(f"❌ {error}")
+        extract_button = st.button(
+            "📄 Extract Content", 
+            type="primary", 
+            disabled=not input_data.get('is_valid') or is_processing,
+            key="admin_extract"
+        )
+        
+        if extract_button:
+            st.session_state['is_processing'] = True
+            st.rerun()
+            
+        # Process extraction if button was clicked
+        if st.session_state.get('is_processing') and not st.session_state.get('stop_processing'):
+            process_extraction_admin(feature_handler, input_data, casino_mode)
     
     else:
         # Step 2: Show preview and analyze
@@ -127,12 +143,24 @@ def render_admin_interface(feature_handler, feature_key: str, casino_mode: bool)
         # Action buttons
         col1, col2 = st.columns([1, 1])
         with col1:
-            if st.button("🚀 Run AI Analysis", type="primary", key="admin_analyze"):
-                run_analysis(feature_handler, feature_key, casino_mode)
+            analyze_button = st.button(
+                "🚀 Run AI Analysis", 
+                type="primary", 
+                disabled=is_processing,
+                key="admin_analyze"
+            )
+            if analyze_button:
+                st.session_state['is_processing'] = True
+                st.rerun()
+                
         with col2:
-            if st.button("🗑️ Clear & Restart", key="admin_clear"):
+            if st.button("🗑️ Clear & Restart", disabled=is_processing, key="admin_clear"):
                 feature_handler.clear_session_data()
                 st.rerun()
+        
+        # Process analysis if button was clicked
+        if st.session_state.get('is_processing') and not st.session_state.get('stop_processing'):
+            process_analysis_admin(feature_handler, feature_key, casino_mode)
 
 def render_user_interface(feature_handler, feature_key: str, casino_mode: bool):
     """Simple user interface with report display"""
@@ -140,6 +168,88 @@ def render_user_interface(feature_handler, feature_key: str, casino_mode: bool):
     
     layout = UserLayout()
     layout.render(feature_key, casino_mode)
+
+def process_extraction_admin(feature_handler, input_data, casino_mode):
+    """Process extraction with emergency stop support"""
+    try:
+        with st.status("Extracting content...") as status:
+            # Check for stop signal
+            if st.session_state.get('stop_processing'):
+                st.session_state['is_processing'] = False
+                st.session_state['stop_processing'] = False
+                return
+            
+            success, extracted_content, error = feature_handler.extract_content(input_data)
+            
+            # Check for stop signal again
+            if st.session_state.get('stop_processing'):
+                st.session_state['is_processing'] = False
+                st.session_state['stop_processing'] = False
+                return
+            
+            if success:
+                # Save data
+                feature_handler.set_session_data('extracted_content', extracted_content)
+                feature_handler.set_session_data('source_info', feature_handler.get_source_description(input_data))
+                feature_handler.set_session_data('casino_mode', casino_mode)
+                
+                status.update(label="✅ Content extracted successfully!", state="complete")
+                st.session_state['is_processing'] = False
+                st.rerun()
+            else:
+                st.error(f"❌ {error}")
+                st.session_state['is_processing'] = False
+                
+    except Exception as e:
+        st.error(f"❌ Extraction failed: {str(e)}")
+        st.session_state['is_processing'] = False
+
+def process_analysis_admin(feature_handler, feature_key, casino_mode):
+    """Process analysis with emergency stop support"""
+    try:
+        extracted_content = feature_handler.get_extracted_content()
+        source_info = feature_handler.get_source_info()
+        
+        with st.status("Running AI analysis...") as status:
+            # Check for stop signal
+            if st.session_state.get('stop_processing'):
+                st.session_state['is_processing'] = False
+                st.session_state['stop_processing'] = False
+                return
+            
+            analysis_result = run_ai_analysis(extracted_content, casino_mode)
+            
+            # Check for stop signal
+            if st.session_state.get('stop_processing'):
+                st.session_state['is_processing'] = False
+                st.session_state['stop_processing'] = False
+                return
+            
+            if analysis_result and analysis_result.get('success'):
+                status.update(label="Generating report...", state="running")
+                word_bytes = generate_report(analysis_result, source_info, casino_mode)
+                
+                status.update(label="✅ Analysis complete!", state="complete")
+                st.session_state['is_processing'] = False
+                
+                st.success("✅ Analysis complete!")
+                
+                # Show markdown report in admin interface
+                st.markdown("### 📄 Generated Report")
+                st.markdown(analysis_result['report'])
+                
+                # Show admin results
+                show_admin_results(analysis_result)
+                
+                # Download
+                show_download(word_bytes, f"admin_{feature_key}")
+            else:
+                st.error("❌ Analysis failed")
+                st.session_state['is_processing'] = False
+                
+    except Exception as e:
+        st.error(f"❌ Analysis failed: {str(e)}")
+        st.session_state['is_processing'] = False
 
 def show_admin_preview(feature_handler):
     """Show content preview for admin"""
