@@ -64,14 +64,7 @@ class UserLayout:
         word_bytes = st.session_state.get(f'{analysis_key}_word_bytes')
         source_info = st.session_state.get(f'{analysis_key}_source_info', 'Analysis')
         
-        # Display the markdown report
-        if markdown_report:
-            st.markdown("### 📄 YMYL Compliance Report")
-            st.markdown(markdown_report)
-        
-        # Download and action buttons
-        st.markdown("---")
-        
+        # FIRST show download and action buttons
         # Download button with unique key
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"ymyl_report_{timestamp}.docx"
@@ -100,6 +93,11 @@ class UserLayout:
         
         # Info about import
         st.info("💡 **Tip**: The Word document imports perfectly into Google Docs!")
+        
+        # THEN display the markdown report
+        if markdown_report:
+            st.markdown("### 📄 YMYL Compliance Report")
+            st.markdown(markdown_report)
     
     def _process_full_analysis(self, feature_handler, input_data: Dict[str, Any], analysis_key: str):
         """Process complete analysis in one step"""
