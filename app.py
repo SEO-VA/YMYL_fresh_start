@@ -65,7 +65,8 @@ def main():
 💡 **How to: Analyse content from draft document**
 
 1. Create a copy of the draft document
-2. Remove anything that is not part of the content to audit (you can leave images)
+2. Remove anything that is not part of the content to audit
+    Note: You can leave images/screenshot in content body
 3. Download the draft document as HTML
 4. Click "Browse files" and upload downloaded document
 5. Start the analysis by clicking on "🚀 Analyze Content"
