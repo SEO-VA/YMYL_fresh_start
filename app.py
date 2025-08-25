@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-YMYL Audit Tool - FIXED VERSION
-Main application with improved state management and report display
+YMYL Audit Tool - FINAL VERSION
+Main application with HTML tip message and complete functionality
 """
 
 import streamlit as st
@@ -16,7 +16,7 @@ st.set_page_config(
 )
 
 def main():
-    """Main application with improved state management"""
+    """Main application with improved state management and HTML tip"""
     
     # Check authentication
     if not check_authentication():
@@ -38,17 +38,6 @@ def main():
     
     st.markdown("---")
     
-    # Casino mode toggle - moved to top level
-    casino_mode = st.checkbox(
-        "🎰 Casino Review Mode",
-        help="Use specialized AI assistant for gambling content analysis",
-        key="global_casino_mode"
-    )
-    
-    # Show sticky message when casino mode is enabled
-    if casino_mode:
-        st.success("🎰 **Casino Review Mode: ON** - Using specialized gambling content analysis")
-    
     # Emergency stop button - always visible when process is running
     is_processing = st.session_state.get('is_processing', False)
     if is_processing:
@@ -69,6 +58,30 @@ def main():
         key="main_analysis_type",
         disabled=is_processing
     )
+    
+    # Show tip for HTML Analysis (only when not processing)
+    if analysis_type == "📄 HTML Analysis" and not is_processing:
+        st.info("""
+💡 **How to: Analyse content from draft document**
+
+1. Create a copy of the draft document
+2. Remove anything that is not part of the content to audit
+3. Download the draft document as HTML
+4. Click "Browse files" and upload downloaded document
+5. Start the analysis by clicking on "🚀 Analyze Content"
+        """)
+    
+    # Casino mode toggle - moved to top level
+    casino_mode = st.checkbox(
+        "🎰 Casino Review Mode",
+        help="Use specialized AI assistant for gambling content analysis",
+        key="global_casino_mode",
+        disabled=is_processing
+    )
+    
+    # Show sticky message when casino mode is enabled
+    if casino_mode:
+        st.success("🎰 **Casino Review Mode: ON** - Using specialized gambling content analysis")
     
     # Get appropriate feature handler
     try:
@@ -112,7 +125,7 @@ def render_admin_interface(feature_handler, feature_key: str, casino_mode: bool)
         # Step 1: Extract content
         st.subheader("Step 1: Extract Content")
         
-        # Get input interface (without casino mode toggle since it's global now)
+        # Get input interface (disabled if processing)
         input_data = feature_handler.get_input_interface(disabled=is_processing)
         # Override casino mode with global setting
         input_data['casino_mode'] = casino_mode
@@ -278,31 +291,6 @@ def show_admin_preview(feature_handler):
             height=400,
             key="admin_content_preview"
         )
-
-def run_analysis(feature_handler, feature_key: str, casino_mode: bool):
-    """Run AI analysis for admin with report display"""
-    extracted_content = feature_handler.get_extracted_content()
-    source_info = feature_handler.get_source_info()
-    
-    with st.spinner("Running AI analysis..."):
-        analysis_result = run_ai_analysis(extracted_content, casino_mode)
-        
-        if analysis_result and analysis_result.get('success'):
-            word_bytes = generate_report(analysis_result, source_info, casino_mode)
-            
-            st.success("✅ Analysis complete!")
-            
-            # Show markdown report in admin interface
-            st.markdown("### 📄 Generated Report")
-            st.markdown(analysis_result['report'])
-            
-            # Show admin results
-            show_admin_results(analysis_result)
-            
-            # Download
-            show_download(word_bytes, f"admin_{feature_key}")
-        else:
-            st.error("❌ Analysis failed")
 
 def show_admin_results(analysis_result):
     """Show analysis results for admin"""
