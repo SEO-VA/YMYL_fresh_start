@@ -17,7 +17,7 @@ from utils.helpers import safe_log
 class UserLayout:
     """Simple user layout with one-step process and report display"""
     
-    def render(self, selected_feature: str):
+    def render(self, selected_feature: str, casino_mode: bool = False):
         """Render user interface for selected feature"""
         
         # Get feature handler
@@ -33,13 +33,15 @@ class UserLayout:
             self._show_results_with_report(analysis_key)
         else:
             # Main content
-            self._render_analysis_interface(feature_handler, analysis_key)
+            self._render_analysis_interface(feature_handler, analysis_key, casino_mode)
     
-    def _render_analysis_interface(self, feature_handler, analysis_key: str):
+    def _render_analysis_interface(self, feature_handler, analysis_key: str, casino_mode: bool):
         """Render simple analysis interface"""
         
-        # Get input interface
+        # Get input interface (without casino mode toggle since it's global now)
         input_data = feature_handler.get_input_interface()
+        # Override casino mode with global setting
+        input_data['casino_mode'] = casino_mode
         
         # Single analyze button
         col1, col2, col3 = st.columns([1, 1, 1])

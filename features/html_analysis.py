@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-HTML Analysis Feature for YMYL Audit Tool
-Handles HTML file and ZIP archive content analysis
+HTML Analysis Feature for YMYL Audit Tool - Updated Version
+Handles HTML file and ZIP archive content analysis without individual casino mode toggle
 """
 
 import streamlit as st
@@ -20,7 +20,7 @@ class HTMLAnalysisFeature(BaseAnalysisFeature):
         return "HTML Analysis"
     
     def get_input_interface(self) -> Dict[str, Any]:
-        """Render simple HTML input interface"""
+        """Render simple HTML input interface without casino toggle"""
         
         # Simple input method selection
         input_method = st.selectbox(
@@ -29,11 +29,8 @@ class HTMLAnalysisFeature(BaseAnalysisFeature):
             key=self.get_session_key("input_method")
         )
         
-        # Casino mode toggle
-        casino_mode = self.show_casino_mode_toggle()
-        
         # Input interface based on method
-        input_data = {'casino_mode': casino_mode, 'input_method': input_method}
+        input_data = {'input_method': input_method}
         
         if input_method == "📝 Paste HTML":
             input_data.update(self._render_simple_html_interface())
@@ -212,53 +209,3 @@ class HTMLAnalysisFeature(BaseAnalysisFeature):
             return "ZIP file"
         else:
             return "HTML content"
-    
-    def show_extraction_preview(self, extracted_content: str, source_info: str, is_admin: bool = False):
-        """Show extraction preview for HTML analysis"""
-        if is_admin:
-            self._show_admin_preview(extracted_content, source_info)
-        else:
-            # Simple preview for regular users
-            st.info(f"💡 Content ready for AI analysis from: **{source_info}**")
-    
-    def _show_admin_preview(self, extracted_content: str, source_info: str):
-        """Show detailed admin preview"""
-        st.markdown("### 🔍 Admin: HTML Extraction Details")
-        
-        # Get metrics
-        metrics = self.get_extraction_metrics(extracted_content)
-        
-        # Show metrics
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Big Chunks", metrics.get('big_chunks', 'N/A'))
-        with col2:
-            st.metric("Small Chunks", metrics.get('small_chunks', 'N/A'))
-        with col3:
-            st.metric("JSON Size", f"{metrics.get('json_size', 0):,} chars")
-        
-        # Content preview
-        with st.expander("👁️ View Extracted Content Structure"):
-            try:
-                import json
-                content_data = json.loads(extracted_content)
-                big_chunks = content_data.get('big_chunks', [])
-                
-                for i, chunk in enumerate(big_chunks, 1):
-                    st.markdown(f"**📦 Big Chunk {i}:**")
-                    small_chunks = chunk.get('small_chunks', [])
-                    
-                    for j, small_chunk in enumerate(small_chunks[:3], 1):
-                        preview = small_chunk[:150] + "..." if len(small_chunk) > 150 else small_chunk
-                        st.text(f"  {j}. {preview}")
-                    
-                    if len(small_chunks) > 3:
-                        st.text(f"  ... and {len(small_chunks) - 3} more chunks")
-                    st.markdown("---")
-                    
-            except json.JSONDecodeError:
-                st.error("Could not parse extracted JSON")
-        
-        # Raw JSON preview
-        with st.expander("🤖 JSON Data Sent to AI"):
-            st.code(extracted_content, language='json')

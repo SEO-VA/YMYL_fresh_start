@@ -38,6 +38,17 @@ def main():
     
     st.markdown("---")
     
+    # Casino mode toggle - moved to top level
+    casino_mode = st.checkbox(
+        "🎰 Casino Review Mode",
+        help="Use specialized AI assistant for gambling content analysis",
+        key="global_casino_mode"
+    )
+    
+    # Show sticky message when casino mode is enabled
+    if casino_mode:
+        st.success("🎰 **Casino Review Mode: ON** - Using specialized gambling content analysis")
+    
     # Feature selection with radio buttons
     analysis_type = st.radio(
         "**Choose analysis type:**",
@@ -68,14 +79,14 @@ def main():
         feature_handler = FeatureRegistry.get_handler(feature_key)
         
         if is_admin:
-            render_admin_interface(feature_handler, feature_key)
+            render_admin_interface(feature_handler, feature_key, casino_mode)
         else:
-            render_user_interface(feature_handler, feature_key)
+            render_user_interface(feature_handler, feature_key, casino_mode)
             
     except Exception as e:
         st.error(f"❌ Error loading feature: {str(e)}")
 
-def render_admin_interface(feature_handler, feature_key: str):
+def render_admin_interface(feature_handler, feature_key: str, casino_mode: bool):
     """Admin interface with two steps and preview"""
     
     # Check if we have extracted content
@@ -85,8 +96,10 @@ def render_admin_interface(feature_handler, feature_key: str):
         # Step 1: Extract content
         st.subheader("Step 1: Extract Content")
         
-        # Get input interface
+        # Get input interface (without casino mode toggle since it's global now)
         input_data = feature_handler.get_input_interface()
+        # Override casino mode with global setting
+        input_data['casino_mode'] = casino_mode
         
         # Extract button
         if st.button("📄 Extract Content", type="primary", disabled=not input_data.get('is_valid')):
@@ -97,7 +110,7 @@ def render_admin_interface(feature_handler, feature_key: str):
                     # Save data
                     feature_handler.set_session_data('extracted_content', extracted_content)
                     feature_handler.set_session_data('source_info', feature_handler.get_source_description(input_data))
-                    feature_handler.set_session_data('casino_mode', input_data.get('casino_mode', False))
+                    feature_handler.set_session_data('casino_mode', casino_mode)
                     
                     st.success("✅ Content extracted!")
                     st.rerun()
@@ -115,18 +128,18 @@ def render_admin_interface(feature_handler, feature_key: str):
         col1, col2 = st.columns([1, 1])
         with col1:
             if st.button("🚀 Run AI Analysis", type="primary", key="admin_analyze"):
-                run_analysis(feature_handler, feature_key)
+                run_analysis(feature_handler, feature_key, casino_mode)
         with col2:
             if st.button("🗑️ Clear & Restart", key="admin_clear"):
                 feature_handler.clear_session_data()
                 st.rerun()
 
-def render_user_interface(feature_handler, feature_key: str):
+def render_user_interface(feature_handler, feature_key: str, casino_mode: bool):
     """Simple user interface with report display"""
     from ui.layouts.user_layout import UserLayout
     
     layout = UserLayout()
-    layout.render(feature_key)
+    layout.render(feature_key, casino_mode)
 
 def show_admin_preview(feature_handler):
     """Show content preview for admin"""
@@ -156,10 +169,9 @@ def show_admin_preview(feature_handler):
             key="admin_content_preview"
         )
 
-def run_analysis(feature_handler, feature_key: str):
+def run_analysis(feature_handler, feature_key: str, casino_mode: bool):
     """Run AI analysis for admin with report display"""
     extracted_content = feature_handler.get_extracted_content()
-    casino_mode = feature_handler.get_session_data('casino_mode', False)
     source_info = feature_handler.get_source_info()
     
     with st.spinner("Running AI analysis..."):
