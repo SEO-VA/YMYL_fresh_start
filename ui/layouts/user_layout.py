@@ -27,10 +27,13 @@ class UserLayout:
             st.error(f"❌ {str(e)}")
             return
         
-        # Check if we have results
-        if st.session_state.get('user_report') and st.session_state.get('user_word_bytes'):
-            self._show_results()
+        # Check if we have analysis results stored
+        if (st.session_state.get('user_analysis_complete') and 
+            st.session_state.get('user_markdown_report') and 
+            st.session_state.get('user_word_bytes')):
+            self._show_results_with_report()
         else:
+            # Main content
             self._render_analysis_interface(feature_handler)
     
     def _render_analysis_interface(self, feature_handler):
@@ -53,30 +56,43 @@ class UserLayout:
         if analyze_clicked:
             self._process_full_analysis(feature_handler, input_data)
     
-    def _show_results(self):
-        """Show results with markdown preview"""
+    def _show_results_with_report(self):
+        """Show results with markdown preview and download"""
         st.success("✅ **Analysis Complete!**")
         
-        # Show markdown report
-        st.markdown(st.session_state['user_report'])
+        # Display the markdown report
+        st.markdown("### 📄 Report")
+        st.markdown(st.session_state['user_markdown_report'])
+        
+        # Download and action buttons
+        st.markdown("---")
         
         # Download button
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"ymyl_report_{timestamp}.docx"
         
-        st.download_button(
-            label="📄 Download Word Report",
-            data=st.session_state['user_word_bytes'],
-            file_name=filename,
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            type="primary"
-        )
+        col1, col2 = st.columns(2)
         
-        # New analysis button
-        if st.button("🔄 Analyze Another"):
-            del st.session_state['user_report']
-            del st.session_state['user_word_bytes']
-            st.rerun()
+        with col1:
+            st.download_button(
+                label="📄 Download Word Report",
+                data=st.session_state['user_word_bytes'],
+                file_name=filename,
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                type="primary",
+                use_container_width=True
+            )
+        
+        with col2:
+            if st.button("🔄 Analyze Another", use_container_width=True):
+                # Clear stored results
+                if 'user_analysis_complete' in st.session_state:
+                    del st.session_state['user_analysis_complete']
+                if 'user_markdown_report' in st.session_state:
+                    del st.session_state['user_markdown_report']
+                if 'user_word_bytes' in st.session_state:
+                    del st.session_state['user_word_bytes']
+                st.rerun()
     
     def _process_full_analysis(self, feature_handler, input_data: Dict[str, Any]):
         """Process complete analysis in one step"""
@@ -126,10 +142,12 @@ class UserLayout:
                 
                 status.update(label="✅ Analysis complete!", state="complete")
             
-            # Store results
-            st.session_state['user_report'] = analysis_result['report']
+            # Store results in session state to prevent reset on download
+            st.session_state['user_analysis_complete'] = True
+            st.session_state['user_markdown_report'] = analysis_result['report']
             st.session_state['user_word_bytes'] = word_bytes
             
+            # Rerun to show results
             st.rerun()
             
         except Exception as e:

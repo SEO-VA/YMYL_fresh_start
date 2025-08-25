@@ -219,16 +219,18 @@ class AdminLayout:
             
             st.success("✅ Analysis complete!")
             
-            # Show admin results
-            self._show_admin_results(analysis_result, word_bytes, source_info)
+            # Show admin analysis results
+            self._show_analysis_results(analysis_result, word_bytes)
+            
+            # Download
+            self._show_download(word_bytes)
             
         except Exception as e:
             st.error(f"❌ Analysis failed: {str(e)}")
             safe_log(f"Analysis error: {e}")
     
-    def _show_admin_results(self, analysis_result: Dict[str, Any], word_bytes: bytes, source_info: str):
+    def _show_analysis_results(self, analysis_result: Dict[str, Any], word_bytes: bytes):
         """Show analysis results for admin"""
-        
         st.markdown("### 📊 Analysis Results")
         
         # Metrics
@@ -243,25 +245,22 @@ class AdminLayout:
             st.metric("Violations Found", violations)
         
         # Show markdown report
-        st.markdown("### 📄 Report")
+        st.markdown("### 📄 Generated Report")
         st.markdown(analysis_result.get('report', ''))
         
         # Raw AI response
         with st.expander("🤖 View Raw AI Response"):
             st.json(analysis_result.get('ai_response', {}))
-        
-        # Download section
-        self._render_download_section(word_bytes, source_info)
     
-    def _render_download_section(self, word_bytes: bytes, source_info: str):
-        """Render download section"""
-        st.markdown("### 📄 Download Report")
+    def _show_download(self, word_bytes: bytes):
+        """Show download button"""
+        from datetime import datetime
         
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"ymyl_report_{timestamp}.docx"
         
         st.download_button(
-            label="📄 Download Word Report",
+            label="📄 Download Report",
             data=word_bytes,
             file_name=filename,
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
