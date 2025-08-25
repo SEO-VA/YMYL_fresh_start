@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-YMYL Audit Tool - Simple Interface
+YMYL Audit Tool - FIXED VERSION
+Main application with improved state management and report display
 """
 
 import streamlit as st
@@ -15,7 +16,7 @@ st.set_page_config(
 )
 
 def main():
-    """Main application"""
+    """Main application with improved state management"""
     
     # Check authentication
     if not check_authentication():
@@ -25,11 +26,13 @@ def main():
     current_user = get_current_user()
     is_admin = (current_user == 'admin')
     
-    # Header
-    st.title("🔍 YMYL Audit Tool")
-    col1, col2 = st.columns([3, 1])
+    # Header with logout button
+    col1, col2 = st.columns([4, 1])
+    with col1:
+        st.title("🔍 YMYL Audit Tool")
+        st.markdown("**AI-powered YMYL compliance analysis for web content**")
     with col2:
-        if st.button("🚪 Logout"):
+        if st.button("🚪 Logout", key="main_logout"):
             logout()
             st.rerun()
     
@@ -39,17 +42,16 @@ def main():
     analysis_type = st.radio(
         "**Choose analysis type:**",
         ["🌐 URL Analysis", "📄 HTML Analysis"],
-        horizontal=True
+        horizontal=True,
+        key="main_analysis_type"
     )
     
     # Get appropriate feature handler
     try:
         available_features = FeatureRegistry.get_available_features()
         
-        # Debug: Show what features are available
         if not available_features:
             st.error("❌ No features registered")
-            st.text("Debug: Check feature imports in feature_registry.py")
             return
         
         # Map display names to feature keys
@@ -61,27 +63,19 @@ def main():
         # Check if feature exists
         if feature_key not in available_features:
             st.error(f"❌ Feature '{feature_key}' not found")
-            st.text(f"Available features: {list(available_features.keys())}")
             return
         
         feature_handler = FeatureRegistry.get_handler(feature_key)
         
         if is_admin:
-            render_admin_interface(feature_handler)
+            render_admin_interface(feature_handler, feature_key)
         else:
-            render_user_interface(feature_handler)
+            render_user_interface(feature_handler, feature_key)
             
     except Exception as e:
         st.error(f"❌ Error loading feature: {str(e)}")
-        
-        # Show debug info
-        try:
-            available_features = FeatureRegistry.get_available_features()
-            st.text(f"Available features: {list(available_features.keys())}")
-        except:
-            st.text("Could not get available features")
 
-def render_admin_interface(feature_handler):
+def render_admin_interface(feature_handler, feature_key: str):
     """Admin interface with two steps and preview"""
     
     # Check if we have extracted content
@@ -120,41 +114,19 @@ def render_admin_interface(feature_handler):
         # Action buttons
         col1, col2 = st.columns([1, 1])
         with col1:
-            if st.button("🚀 Run AI Analysis", type="primary"):
-                run_analysis(feature_handler)
+            if st.button("🚀 Run AI Analysis", type="primary", key="admin_analyze"):
+                run_analysis(feature_handler, feature_key)
         with col2:
-            if st.button("🗑️ Clear & Restart"):
+            if st.button("🗑️ Clear & Restart", key="admin_clear"):
                 feature_handler.clear_session_data()
                 st.rerun()
 
-def render_user_interface(feature_handler):
-    """Simple user interface - one step"""
+def render_user_interface(feature_handler, feature_key: str):
+    """Simple user interface with report display"""
+    from ui.layouts.user_layout import UserLayout
     
-    # Get input interface
-    input_data = feature_handler.get_input_interface()
-    
-    # Single analyze button
-    if st.button("🚀 Analyze Content", type="primary", disabled=not input_data.get('is_valid')):
-        with st.spinner("Processing..."):
-            # Extract content
-            success, extracted_content, error = feature_handler.extract_content(input_data)
-            if not success:
-                st.error(f"❌ {error}")
-                return
-            
-            # Run analysis
-            casino_mode = input_data.get('casino_mode', False)
-            source_info = feature_handler.get_source_description(input_data)
-            
-            analysis_result = run_ai_analysis(extracted_content, casino_mode)
-            
-            if analysis_result and analysis_result.get('success'):
-                # Generate report
-                word_bytes = generate_report(analysis_result, source_info, casino_mode)
-                st.success("✅ Analysis complete!")
-                show_download(word_bytes)
-            else:
-                st.error("❌ Analysis failed")
+    layout = UserLayout()
+    layout.render(feature_key)
 
 def show_admin_preview(feature_handler):
     """Show content preview for admin"""
@@ -181,11 +153,11 @@ def show_admin_preview(feature_handler):
             "Complete Extracted Content:",
             value=extracted_content,
             height=400,
-            key="full_content_preview"
+            key="admin_content_preview"
         )
 
-def run_analysis(feature_handler):
-    """Run AI analysis for admin"""
+def run_analysis(feature_handler, feature_key: str):
+    """Run AI analysis for admin with report display"""
     extracted_content = feature_handler.get_extracted_content()
     casino_mode = feature_handler.get_session_data('casino_mode', False)
     source_info = feature_handler.get_source_info()
@@ -195,13 +167,18 @@ def run_analysis(feature_handler):
         
         if analysis_result and analysis_result.get('success'):
             word_bytes = generate_report(analysis_result, source_info, casino_mode)
+            
             st.success("✅ Analysis complete!")
+            
+            # Show markdown report in admin interface
+            st.markdown("### 📄 Generated Report")
+            st.markdown(analysis_result['report'])
             
             # Show admin results
             show_admin_results(analysis_result)
             
             # Download
-            show_download(word_bytes)
+            show_download(word_bytes, f"admin_{feature_key}")
         else:
             st.error("❌ Analysis failed")
 
@@ -248,8 +225,8 @@ def generate_report(analysis_result, source_info, casino_mode):
         casino_mode
     )
 
-def show_download(word_bytes):
-    """Show download button"""
+def show_download(word_bytes, prefix: str):
+    """Show download button with unique key"""
     from datetime import datetime
     
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -260,7 +237,8 @@ def show_download(word_bytes):
         data=word_bytes,
         file_name=filename,
         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        type="primary"
+        type="primary",
+        key=f"download_{prefix}_{timestamp}"  # Unique key prevents UI reset
     )
 
 if __name__ == "__main__":

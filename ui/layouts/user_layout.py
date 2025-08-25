@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-User Layout for YMYL Audit Tool
-Handles simple one-step process for regular users
+User Layout for YMYL Audit Tool - FIXED VERSION
+Handles simple one-step process with report display and persistent state
 """
 
 import streamlit as st
@@ -15,7 +15,7 @@ from core.reporter import generate_word_report
 from utils.helpers import safe_log
 
 class UserLayout:
-    """Simple user layout with one-step process"""
+    """Simple user layout with one-step process and report display"""
     
     def render(self, selected_feature: str):
         """Render user interface for selected feature"""
@@ -28,15 +28,14 @@ class UserLayout:
             return
         
         # Check if we have analysis results stored
-        if (st.session_state.get('user_analysis_complete') and 
-            st.session_state.get('user_markdown_report') and 
-            st.session_state.get('user_word_bytes')):
-            self._show_results_with_report()
+        analysis_key = f"user_analysis_{selected_feature}"
+        if st.session_state.get(f'{analysis_key}_complete'):
+            self._show_results_with_report(analysis_key)
         else:
             # Main content
-            self._render_analysis_interface(feature_handler)
+            self._render_analysis_interface(feature_handler, analysis_key)
     
-    def _render_analysis_interface(self, feature_handler):
+    def _render_analysis_interface(self, feature_handler, analysis_key: str):
         """Render simple analysis interface"""
         
         # Get input interface
@@ -54,47 +53,55 @@ class UserLayout:
         
         # Process full analysis
         if analyze_clicked:
-            self._process_full_analysis(feature_handler, input_data)
+            self._process_full_analysis(feature_handler, input_data, analysis_key)
     
-    def _show_results_with_report(self):
+    def _show_results_with_report(self, analysis_key: str):
         """Show results with markdown preview and download"""
         st.success("✅ **Analysis Complete!**")
         
+        # Get stored data
+        markdown_report = st.session_state.get(f'{analysis_key}_report')
+        word_bytes = st.session_state.get(f'{analysis_key}_word_bytes')
+        source_info = st.session_state.get(f'{analysis_key}_source_info', 'Analysis')
+        
         # Display the markdown report
-        st.markdown("### 📄 Report")
-        st.markdown(st.session_state['user_markdown_report'])
+        if markdown_report:
+            st.markdown("### 📄 YMYL Compliance Report")
+            st.markdown(markdown_report)
         
         # Download and action buttons
         st.markdown("---")
         
-        # Download button
+        # Download button with unique key
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"ymyl_report_{timestamp}.docx"
         
         col1, col2 = st.columns(2)
         
         with col1:
-            st.download_button(
-                label="📄 Download Word Report",
-                data=st.session_state['user_word_bytes'],
-                file_name=filename,
-                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                type="primary",
-                use_container_width=True
-            )
+            if word_bytes:
+                st.download_button(
+                    label="📄 Download Word Report",
+                    data=word_bytes,
+                    file_name=filename,
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    type="primary",
+                    use_container_width=True,
+                    key=f"download_{analysis_key}_{timestamp}"  # Unique key prevents reset
+                )
         
         with col2:
-            if st.button("🔄 Analyze Another", use_container_width=True):
-                # Clear stored results
-                if 'user_analysis_complete' in st.session_state:
-                    del st.session_state['user_analysis_complete']
-                if 'user_markdown_report' in st.session_state:
-                    del st.session_state['user_markdown_report']
-                if 'user_word_bytes' in st.session_state:
-                    del st.session_state['user_word_bytes']
+            if st.button("🔄 Analyze Another", use_container_width=True, key=f"new_analysis_{analysis_key}"):
+                # Clear stored results for this analysis type
+                keys_to_clear = [k for k in st.session_state.keys() if k.startswith(analysis_key)]
+                for key in keys_to_clear:
+                    del st.session_state[key]
                 st.rerun()
+        
+        # Info about import
+        st.info("💡 **Tip**: The Word document imports perfectly into Google Docs!")
     
-    def _process_full_analysis(self, feature_handler, input_data: Dict[str, Any]):
+    def _process_full_analysis(self, feature_handler, input_data: Dict[str, Any], analysis_key: str):
         """Process complete analysis in one step"""
         
         try:
@@ -142,10 +149,15 @@ class UserLayout:
                 
                 status.update(label="✅ Analysis complete!", state="complete")
             
-            # Store results in session state to prevent reset on download
-            st.session_state['user_analysis_complete'] = True
-            st.session_state['user_markdown_report'] = analysis_result['report']
-            st.session_state['user_word_bytes'] = word_bytes
+            # Store results in session state with unique keys to prevent conflicts
+            st.session_state[f'{analysis_key}_complete'] = True
+            st.session_state[f'{analysis_key}_report'] = analysis_result['report']
+            st.session_state[f'{analysis_key}_word_bytes'] = word_bytes
+            st.session_state[f'{analysis_key}_source_info'] = source_info
+            st.session_state[f'{analysis_key}_processing_time'] = analysis_result.get('processing_time', 0)
+            
+            # Log success
+            safe_log(f"User analysis completed successfully for {source_info}")
             
             # Rerun to show results
             st.rerun()
